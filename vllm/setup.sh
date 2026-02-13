@@ -46,7 +46,7 @@ echo "Using existing Docker installation..."
 if command -v nvidia-smi &> /dev/null; then
     echo "GPU detected: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
 else
-    echo "❌ No GPU detected - This is a script meant to be run on a NVIDIA Brev GPU instance!"
+    echo "❌ No GPU detected - This is a script meant to be run on an NVIDIA Brev GPU instance!"
     exit 1
 fi
 
@@ -77,16 +77,26 @@ docker run -d \
 # Create examples directory
 mkdir -p "$HOME/vllm-examples"
 
+# Save config for example scripts
+echo "$MODEL" > "$HOME/vllm-examples/.model"
+echo "$PORT" > "$HOME/vllm-examples/.port"
+
 # Create example Python script
-cat > "$HOME/vllm-examples/chat.py" << EOF
+cat > "$HOME/vllm-examples/chat.py" << 'EOF'
 #!/usr/bin/env python3
 """Example: Chat with vLLM using OpenAI SDK"""
+import os, pathlib
+
+config_dir = pathlib.Path(__file__).parent
+model = os.environ.get("VLLM_MODEL", (config_dir / ".model").read_text().strip())
+port = os.environ.get("VLLM_PORT", (config_dir / ".port").read_text().strip())
+
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:${PORT}/v1", api_key="not-needed")
+client = OpenAI(base_url=f"http://localhost:{port}/v1", api_key="not-needed")
 
 response = client.chat.completions.create(
-    model="${MODEL}",
+    model=model,
     messages=[{"role": "user", "content": "Explain what vLLM is in two sentences."}]
 )
 
@@ -95,16 +105,20 @@ EOF
 chmod +x "$HOME/vllm-examples/chat.py"
 
 # Create curl example script
-cat > "$HOME/vllm-examples/test_api.sh" << EOF
+cat > "$HOME/vllm-examples/test_api.sh" << 'EOF'
 #!/bin/bash
 # Test vLLM API with curl
-curl -s http://localhost:${PORT}/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "${MODEL}",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "max_tokens": 100
-  }' | python3 -m json.tool
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MODEL="${VLLM_MODEL:-$(cat "$SCRIPT_DIR/.model")}"
+PORT="${VLLM_PORT:-$(cat "$SCRIPT_DIR/.port")}"
+
+curl -s "http://localhost:${PORT}/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"model\": \"${MODEL}\",
+    \"messages\": [{\"role\": \"user\", \"content\": \"Hello!\"}],
+    \"max_tokens\": 100
+  }" | python3 -m json.tool
 EOF
 chmod +x "$HOME/vllm-examples/test_api.sh"
 

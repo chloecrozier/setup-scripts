@@ -48,7 +48,7 @@ echo "Using existing Docker installation..."
 if command -v nvidia-smi &> /dev/null; then
     echo "GPU detected: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
 else
-    echo "❌ No GPU detected - This is a script meant to be run on a NVIDIA Brev GPU instance!"
+    echo "❌ No GPU detected - This is a script meant to be run on an NVIDIA Brev GPU instance!"
     exit 1
 fi
 
@@ -64,7 +64,7 @@ fi
 
 # Run TensorRT-LLM container
 echo "Starting TensorRT-LLM server with $MODEL..."
-echo "This may take 10-20+ minutes on first run (engine building + model download)..."
+echo "This may take 8-10 minutes on first run (engine building + model download)..."
 docker run -d \
     --name trtllm \
     --restart unless-stopped \
@@ -82,16 +82,26 @@ docker run -d \
 # Create examples directory
 mkdir -p "$HOME/trtllm-examples"
 
+# Save config for example scripts
+echo "$MODEL" > "$HOME/trtllm-examples/.model"
+echo "$PORT" > "$HOME/trtllm-examples/.port"
+
 # Create example Python script
-cat > "$HOME/trtllm-examples/chat.py" << EOF
+cat > "$HOME/trtllm-examples/chat.py" << 'EOF'
 #!/usr/bin/env python3
 """Example: Chat with TensorRT-LLM using OpenAI SDK"""
+import os, pathlib
+
+config_dir = pathlib.Path(__file__).parent
+model = os.environ.get("TRTLLM_MODEL", (config_dir / ".model").read_text().strip())
+port = os.environ.get("TRTLLM_PORT", (config_dir / ".port").read_text().strip())
+
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:${PORT}/v1", api_key="tensorrt_llm")
+client = OpenAI(base_url=f"http://localhost:{port}/v1", api_key="tensorrt_llm")
 
 response = client.chat.completions.create(
-    model="${MODEL}",
+    model=model,
     messages=[{"role": "user", "content": "Explain what TensorRT-LLM is in two sentences."}]
 )
 
@@ -100,16 +110,20 @@ EOF
 chmod +x "$HOME/trtllm-examples/chat.py"
 
 # Create curl example script
-cat > "$HOME/trtllm-examples/test_api.sh" << EOF
+cat > "$HOME/trtllm-examples/test_api.sh" << 'EOF'
 #!/bin/bash
 # Test TensorRT-LLM API with curl
-curl -s http://localhost:${PORT}/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "${MODEL}",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "max_tokens": 100
-  }' | python3 -m json.tool
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MODEL="${TRTLLM_MODEL:-$(cat "$SCRIPT_DIR/.model")}"
+PORT="${TRTLLM_PORT:-$(cat "$SCRIPT_DIR/.port")}"
+
+curl -s "http://localhost:${PORT}/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"model\": \"${MODEL}\",
+    \"messages\": [{\"role\": \"user\", \"content\": \"Hello!\"}],
+    \"max_tokens\": 100
+  }" | python3 -m json.tool
 EOF
 chmod +x "$HOME/trtllm-examples/test_api.sh"
 
@@ -121,7 +135,7 @@ fi
 
 # Wait for container to start
 echo "Waiting for TensorRT-LLM to initialize..."
-echo "(Engine building and model loading may take 10-20+ minutes on first run)"
+echo "(Engine building and model loading may take 8-10 minutes on first run)"
 sleep 5
 
 # Verify
@@ -132,7 +146,7 @@ docker ps --filter "name=trtllm" --format "table {{.Names}}\t{{.Status}}\t{{.Por
 echo ""
 echo "✅ TensorRT-LLM container running!"
 echo ""
-echo "⏳ The engine is still building — first run takes 10-20+ minutes."
+echo "⏳ The engine is still building — first run takes 8-10 minutes."
 echo "   Subsequent starts are much faster (engine is cached)."
 echo "   Run this to watch progress:"
 echo "   docker logs -f trtllm"

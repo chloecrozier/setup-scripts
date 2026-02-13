@@ -7,7 +7,7 @@ TensorRT-LLM compiles models into highly optimized TensorRT engines that squeeze
 ## What it installs
 
 - **TensorRT-LLM** - GPU-optimized inference with automatic engine building (Docker container)
-- **Starter model** - TinyLlama-1.1B-Chat (pre-downloaded)
+- **Starter model** - TinyLlama-1.1B-Chat (downloaded on first run)
 - **Example scripts** - `~/trtllm-examples/chat.py` and `~/trtllm-examples/test_api.sh`
 
 ## ⚠️ Required Port
@@ -21,7 +21,7 @@ To access from outside Brev, open:
 bash setup.sh
 ```
 
-Takes ~8-10 minutes on first run (builds TensorRT engine). Subsequent starts are much faster.
+Takes ~8-10 minutes on first run (downloads model + builds TensorRT engine). Subsequent starts are much faster.
 
 **Options (environment variables):**
 ```bash

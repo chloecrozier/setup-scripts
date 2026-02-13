@@ -5,7 +5,7 @@ High-performance LLM inference server with OpenAI-compatible API.
 ## What it installs
 
 - **vLLM** - Fast LLM inference engine (Docker container)
-- **Starter model** - Qwen2.5-1.5B-Instruct (pre-downloaded)
+- **Starter model** - Qwen2.5-1.5B-Instruct (downloaded on first run)
 - **Example scripts** - `~/vllm-examples/chat.py` and `~/vllm-examples/test_api.sh`
 
 ## ⚠️ Required Port
